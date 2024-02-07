@@ -79,7 +79,7 @@ def download_genome_data(species_taxid, target_directory):
         print('exists')
         return None
     os.makedirs(species_dir, exist_ok=True)
-    zip_file=os.path.join(target_dir,f"{species_taxid}.zip")
+    zip_file=os.path.join(target_directory,f"{species_taxid}.zip")
     # Download the genome data
     command = [
         "datasets", 

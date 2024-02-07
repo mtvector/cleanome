@@ -34,8 +34,8 @@ def main():
     for taxid in species_dict.keys():
         try:
             download_genome_data(str(taxid),genome_directory)
-        except:
-            print(taxid," HAS FAILED")
+        except Exception as error:
+            print(taxid," HAS FAILED", error)
 
 if __name__ == "__main__":
     main()
