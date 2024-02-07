@@ -33,10 +33,10 @@ def generate_chromsizes(fasta_file, output_file):
             outfile.write(f'{sequence_name}\t{sequence_length}\n')
 
 
-def get_taxid(species_taxid):
+def get_taxid(species_name):
     """Get the taxid for a species name using NCBI's Entrez Utilities."""
     Entrez.email = "your-email@example.com"  # Provide your email address
-    handle = Entrez.esearch(db="taxonomy", term=species_taxid)
+    handle = Entrez.esearch(db="taxonomy", term=species_name)
     record = Entrez.read(handle)
     handle.close()
     
@@ -45,6 +45,21 @@ def get_taxid(species_taxid):
         return record["IdList"][0]
     else:
         return None
+
+
+def get_scientific_name(taxid):
+    """Get the scientific name for a given TaxID using NCBI's Entrez Utilities."""
+    Entrez.email = "your-email@example.com"  # Provide your email address
+    handle = Entrez.efetch(db="taxonomy", id=taxid, retmode="xml")
+    records = Entrez.read(handle)
+    handle.close()
+    
+    # Return the scientific name found
+    if records:
+        return records[0]["ScientificName"]
+    else:
+        return None
+
 
 #######################NCBI REFERENCE PROCESSING########################
 

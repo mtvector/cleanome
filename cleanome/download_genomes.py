@@ -27,7 +27,7 @@ def main():
         species_list = [line.strip() for line in file]
     
     if args.taxid:
-        species_dict = {species:species  for species in species_list}
+        species_dict = {species:get_scientific_name(species)  for species in species_list}
     else:
         species_dict = {get_taxid(species):species  for species in species_list}
     
