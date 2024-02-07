@@ -1,6 +1,18 @@
 # cleanome
 Download genome annotations and prepare them to be made into reference annotations (e.g. with cellranger or cellranger-arc)
 
+
+### Installation
+
+Make a anaconda environment with python>=3.6
+
+```conda install -c conda-forge ncbi-datasets-cli```
+
+```
+cd cleanome
+pip install .
+```
+
 ### Usage
 Current functions include:
 ```

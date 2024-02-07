@@ -3,7 +3,7 @@ Author: Matthew Schmitz, Allen Institute, 2024
 """
 import pandas as pd
 import numpy as np
-from Bio imort SeqIO
+from Bio import SeqIO
 import csv
 
 def zcumsum(iterable):

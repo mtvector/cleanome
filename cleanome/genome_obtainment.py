@@ -8,6 +8,7 @@ import re
 from ftplib import FTP
 import pandas as pd
 from Bio import SeqIO
+from Bio import Entrez
 import gtfparse
 import gzip
 from ete3 import Tree
@@ -78,10 +79,10 @@ def download_genome_data(species_taxid, target_directory):
         print('exists')
         return None
     os.makedirs(species_dir, exist_ok=True)
-
+    zip_file=os.path.join(target_dir,f"{species_taxid}.zip")
     # Download the genome data
     command = [
-        "/allen/programs/celltypes/workgroups/rnaseqanalysis/EvoGen/Team/Matthew/utils/miniconda3/envs/genomes/bin/datasets", 
+        "datasets", 
         "download", 
         "genome", 
         "taxon", 
@@ -90,12 +91,12 @@ def download_genome_data(species_taxid, target_directory):
         "--include", 
         "genome,gtf,seq-report",
         "--filename", 
-        f"{species_taxid}.zip"
+        zip_file
     ]
     run_ncbi_datasets_command(command)
 
     # Unzip the downloaded file
-    subprocess.run(["unzip", f"{species_taxid}.zip", "-d", species_dir], stdout=open(os.devnull, 'wb'))
+    subprocess.run(["unzip", zip_file, "-d", species_dir], stdout=open(os.devnull, 'wb'))
 
     # Move files from their subdirectories to the main species directory
     for root, dirs, files in os.walk(species_dir):
@@ -105,7 +106,7 @@ def download_genome_data(species_taxid, target_directory):
                 shutil.move(file_path, species_dir)
 
         # Clean up (remove zip file and any empty directories)
-        # os.remove(f"{species_taxid}.zip")
+        # os.remove(zip_file)
         # for name in dirs:
         #     shutil.rmtree(os.path.join(root, name))
                 
@@ -300,7 +301,7 @@ def process_directory(dir_path,gtf=False):
                 'Species': species_taxid,
                 'TaxID': taxid,
                 'Common Name': common_name,
-                'Genome Assembly Name': assembly_name,,
+                'Genome Assembly Name': assembly_name,
                 'Genome Accession': accession,
                 'N50': n50,
                 'Number of Genes': num_genes,

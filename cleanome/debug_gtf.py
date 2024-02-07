@@ -5,7 +5,7 @@ Author: Matthew Schmitz, Allen Institute, 2024
 
 Sorts, deduplicates, fixes nesting, fills blanks, adds missing annotations for GTF files
 usage:
-python debug_gtf.py "{gtf_path}" "{gtf_output}"
+python debug_gtf "{gtf_path}" "{gtf_output}"
 """
 
 
@@ -137,16 +137,20 @@ def deduplicate_gtf(pandas_df,extra_allowed_cols=[]):
     pandas_df=make_unique(pandas_df,'transcript_id',feature_name='transcript')
     return pandas_df
 
-file_path=sys.argv[1]
-polars_df = gtfparse_gtf_file(file_path)
-pandas_df = polars_to_pandas(polars_df)
-df_with_transcripts = gtf_add_missing_features_optimized(pandas_df)
-print('added features')
-df_with_transcripts=df_with_transcripts.loc[~df_with_transcripts['transcript_id'].astype(str).str.contains('unknown'),:]
-df_with_transcripts=deduplicate_gtf(df_with_transcripts)
-df_with_transcripts = gtf_df_sort(df_with_transcripts)
-print('sorted')
-df_with_transcripts['score']='.'#the score column is worthless for cellranger so who cares
-if 'attribute' in df_with_transcripts.columns:
-    df_with_transcripts.drop('attribute',axis=1,inplace=True)
-write_gtf_df(df_with_transcripts, sys.argv[2])
+def main():
+    file_path=sys.argv[1]
+    polars_df = gtfparse_gtf_file(file_path)
+    pandas_df = polars_to_pandas(polars_df)
+    df_with_transcripts = gtf_add_missing_features_optimized(pandas_df)
+    print('added features')
+    df_with_transcripts=df_with_transcripts.loc[~df_with_transcripts['transcript_id'].astype(str).str.contains('unknown'),:]
+    df_with_transcripts=deduplicate_gtf(df_with_transcripts)
+    df_with_transcripts = gtf_df_sort(df_with_transcripts)
+    print('sorted')
+    df_with_transcripts['score']='.'#the score column is worthless for cellranger so who cares
+    if 'attribute' in df_with_transcripts.columns:
+        df_with_transcripts.drop('attribute',axis=1,inplace=True)
+    write_gtf_df(df_with_transcripts, sys.argv[2])
+
+if __name__ == "__main__":
+    main()
