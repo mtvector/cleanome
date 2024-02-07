@@ -10,6 +10,7 @@ Make a anaconda environment with python>=3.6
 conda install -c conda-forge ncbi-datasets-cli```
 ```
 
+```
 git clone git@github.com:mtvector/cleanome.git
 cd cleanome
 pip install .
