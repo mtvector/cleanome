@@ -26,7 +26,7 @@ setup(
         'console_scripts': [
             'download_genomes=cleanome.download_genomes:main',
             'get_genomes_and_stats=cleanome.get_genomes_and_stats:main',
-            'make_cellranger_arc=cleanome.make_cellranger_arc_sh:main',
+            'make_cellranger_arc_sh=cleanome.make_cellranger_arc_sh:main',
             'debug_gtf=cleanome.debug_gtf:main',
         ],
     },

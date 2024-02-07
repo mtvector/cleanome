@@ -32,7 +32,7 @@ def main():
     # Create DataFrames
     ncbi_df = pd.DataFrame(ncbi_data)
     
-    combined_df.to_csv(ncbi_df)
+    ncbi_df.to_csv(args.stats_csv)
 
 if __name__ == "__main__":
     main()
