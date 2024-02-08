@@ -1,5 +1,5 @@
 # cleanome
-Download genome annotations and prepare them to be made into reference annotations (e.g. with cellranger or cellranger-arc)
+This is a python package that can be used to download genome annotations from multiple species and prepare them to be made into reference annotations (e.g. with cellranger or cellranger-arc). It is meant to standardize the process of debugging gtf files in order to make them compatible as gtfs provided by NCBI and ENSEMBL generally have one of a few problems that make them incompatible with creating genomics reference annotations (missing gene/transcript ids, duplicated genes or transcripts, contigs that are too large etc). The package has three steps: 1. Download fasta, gtf, and assembly metadata files for a list of species (by scientific name or taxid). 2. Generate statistics for the assemblies and debug them. 3. Write shell scripts for making [cellranger-arc] references.
 
 
 ### Installation

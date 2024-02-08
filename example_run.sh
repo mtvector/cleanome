@@ -11,8 +11,7 @@
 source ~/.bashrc
 conda activate cleanome
 
-CLEANOME_DIR=~/utils/cleanome
-JOB_DIR=/home/matthew.schmitz/Matthew/genome/cleanome_test
+JOB_DIR=/allen/programs/celltypes/workgroups/rnaseqanalysis/EvoGen/genomes/cleanome_genomes
 mkdir -p $JOB_DIR
 
 cd $JOB_DIR
