@@ -7,7 +7,7 @@ Download genome annotations and prepare them to be made into reference annotatio
 Make a anaconda environment with python>=3.6
 
 ```
-conda install -c conda-forge ncbi-datasets-cli```
+conda install -c conda-forge ncbi-datasets-cli
 ```
 
 ```

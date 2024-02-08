@@ -28,7 +28,7 @@ get_genomes_and_stats --genome_dir $JOB_DIR/ncbi_genomes/ \
 --stats_csv $JOB_DIR/genome_info.csv -c
 
 make_cellranger_arc_sh --sh_scripts_dir $JOB_DIR/submission_scripts/ \
---output_dir $JOB_DIR/cellranger-arc \
+--output_dir $JOB_DIR/cellranger_arc \
 --log_dir $JOB_DIR/logs \
 --stats_csv $JOB_DIR/genome_info.csv \
 --cellranger_bin /allen/programs/celltypes/workgroups/rnaseqanalysis/EvoGen/Team/Matthew/utils/cellranger-arc-2.0.2/bin
