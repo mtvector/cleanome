@@ -103,6 +103,8 @@ def download_genome_data(species_taxid, target_directory):
         "taxon", 
         species_taxid, 
         "--reference", 
+        "--assembly-source",
+        "RefSeq",
         "--include", 
         "genome,gtf,seq-report",
         "--filename", 

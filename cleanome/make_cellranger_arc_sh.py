@@ -52,7 +52,7 @@ def main():
             split_gtf_path=re.sub('\.gtf|\.gff|\.gz','',gtf_path)+'_splitchr.gtf'
             ChromosomeSplitter(fasta_path,gtf_path,split_fasta_path,split_gtf_path,length_threshold=5e8)
             gtf_debugged_filename = os.path.basename(split_gtf_path).replace('.gtf', '_debugged.gtf')
-            gtf_debugged_path = os.path.join(os.path.dirname(gtf_path), gtf_debugged_filename)
+            gtf_debugged_path = os.path.join(os.path.dirname(split_gtf_path), gtf_debugged_filename)
             config_file = f"{out_dir}/refseq_{species}.config"
         
             # Create the Slurm script content
