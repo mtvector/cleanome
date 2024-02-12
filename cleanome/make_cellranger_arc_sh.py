@@ -73,7 +73,7 @@ source ~/.zshrc
 conda activate cleanome
 
 # Step 1: Process the GTF file with the Python script
-debug_gtf "{gtf_path}" "{gtf_debugged_path}"
+debug_gtf "{split_gtf_path}" "{gtf_debugged_path}"
 
 cd {out_dir}
 
