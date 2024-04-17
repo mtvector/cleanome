@@ -1,5 +1,8 @@
 Aotus nancymaae
 Callithrix jacchus
+Canis lupus
+Canis familiaris
+Canis lupus familiaris
 Canis latrans
 Chlorocebus sabaeus
 Dasypus novemcinctus

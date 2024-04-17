@@ -82,6 +82,9 @@ def gtf_df_sort(df):
         else:
             return 4
     
+    df.loc[df['transcript_id']=='nan','transcript_id']=''
+    df.loc[df['transcript_id'].isna(),'transcript_id']=''
+
     # Apply the custom sorting function
     df['feature_sort'] = df.apply(feature_sort, axis=1)
     

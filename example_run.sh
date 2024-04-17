@@ -20,8 +20,8 @@ mkdir -p cellranger_arc
 mkdir -p submission_scripts
 mkdir -p logs
 
-#download_genomes --species_list ~/species_list.txt \
-#--genome_dir $JOB_DIR/ncbi_genomes/ 
+download_genomes --species_list ~/utils/cleanome/species_list.txt \
+--genome_dir $JOB_DIR/ncbi_genomes/ 
 
 get_genomes_and_stats --genome_dir $JOB_DIR/ncbi_genomes/ \
 --stats_csv $JOB_DIR/genome_info.csv -c
