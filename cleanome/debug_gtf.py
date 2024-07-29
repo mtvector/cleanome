@@ -81,7 +81,7 @@ def gtf_df_sort(df):
             return 3
         else:
             return 4
-    
+    print('fix tx bug')
     df.loc[df['transcript_id']=='nan','transcript_id']=''
     df.loc[df['transcript_id'].isna(),'transcript_id']=''
 
