@@ -8,6 +8,8 @@ Make a anaconda environment with python>=3.6
 
 ```
 conda install -c conda-forge ncbi-datasets-cli
+
+conda install -c conda-forge -c bioconda ete3 gtfparse numpy pandas polars polars-lts-cpu pyarrow requests biopython
 ```
 
 ```
@@ -34,6 +36,13 @@ Collects the fastas and gtfs from all the genomes in a directory and calculates 
 ```
 make_cellranger_arc_sh --sh_scripts_dir ./submission_scripts/ --stats_csv ./genome_info.csv --output_dir ~/cellranger-arc --log_dir ~/log/ -cellranger_bin /path/to/cellranger-arc/bin/
 ```
+
 Debugs gtfs (deduplicate transcripts/genes, add missing transcripts for exons and missing genes for transcripts, fills missing values with placeholders, split chromosomes that are too large, fix nesting)
+
+Or to just debug a gtf:
+
+```
+debug_gtf file.gtf file.debug.gtf
+```
 
 
