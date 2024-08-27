@@ -64,7 +64,7 @@ def gtf_add_missing_features_optimized(df):
     new_df.fillna('nan', inplace=True)
     return new_df
 
-def gtf_attribute_string_generator(columns_to_condense):
+def gtf_attribute_string_funfun(columns_to_condense):
     '''combines specified columns into gtf/gff2 attributes format'''
     def format_string(row):
         return '; '.join([f'{col} "{row[col]}"' for col in columns_to_condense if ((row[col]!='') and (row[col]!='nan'))])
@@ -100,7 +100,7 @@ def write_gtf_df(df, output_file_path):
     if len(df.columns)>8:
         if 'attribute' in df.columns:
             df.drop('attribute',axis=1,inplace=True)
-        format_string=gtf_attribute_string_generator(df.columns[8:])
+        format_string=gtf_attribute_string_funfun(df.columns[8:])
         df.loc[:,'attribute']=df.apply(format_string, axis=1)
     columns = ['seqname', 'source', 'feature', 'start', 'end', 'score', 'strand', 'frame', 'attribute']
     #####FOR SOME REASON GTF MUST BE IN ASCII ENCODING FOR CELLRANGER!!!!!!!
@@ -140,11 +140,17 @@ def deduplicate_gtf(pandas_df,extra_allowed_cols=[]):
     pandas_df=make_unique(pandas_df,'transcript_id',feature_name='transcript')
     return pandas_df
 
+def fill_missing_names_with_id(pandas_df,name_column='gene',fill_column='gene_id'):
+    missing_names = (pandas_df[name_column] == 'nan') | (pandas_df[name_column].isna())
+    pandas_df.loc[missing_names,name_column] = pandas_df.loc[missing_names,fill_column]
+    return pandas_df
+
 def main():
     file_path=sys.argv[1]
     polars_df = gtfparse_gtf_file(file_path)
     pandas_df = polars_to_pandas(polars_df)
     df_with_transcripts = gtf_add_missing_features_optimized(pandas_df)
+    df_with_transcripts = fill_missing_names_with_id(df_with_transcripts)
     print('added features')
     df_with_transcripts=df_with_transcripts.loc[~df_with_transcripts['transcript_id'].astype(str).str.contains('unknown'),:]
     df_with_transcripts=deduplicate_gtf(df_with_transcripts)

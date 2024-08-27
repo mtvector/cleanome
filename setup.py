@@ -12,16 +12,16 @@ setup(
     version="0.1",
     packages=find_packages(),
     python_requires='>=3.6',
-    install_requires=[
-        'gtfparse',
-        'polars-lts-cpu',
-        'biopython',
-        'pandas',
-        'numpy',
-        'tqdm',
-        'requests',
-        'ete3'
-    ],
+    # install_requires=[#If uncommented, pip might try to do something silly
+    #     'gtfparse',
+    #     'polars-lts-cpu',
+    #     'biopython',
+    #     'pandas',
+    #     'numpy',
+    #     'tqdm',
+    #     'requests',
+    #     'ete3'
+    # ],
     entry_points={
         'console_scripts': [
             'download_genomes=cleanome.download_genomes:main',

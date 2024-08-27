@@ -9,7 +9,7 @@ Make a anaconda environment with python>=3.6
 ```
 conda install -c conda-forge ncbi-datasets-cli
 
-conda install -c conda-forge -c bioconda ete3 gtfparse numpy pandas polars polars-lts-cpu pyarrow requests biopython
+conda install -c conda-forge -c bioconda ete3 gtfparse numpy pandas polars polars-lts-cpu pyarrow requests biopython tqdm 
 ```
 
 ```
