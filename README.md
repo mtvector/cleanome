@@ -20,9 +20,16 @@ pip install .
 
 ### Usage
 
-See example_run.sh for an example script to download genomes, get statistics, debug gtfs and build cellranger-arc references.
 
-Current functions include:
+To debug a gtf by adding missing gene and transcript fields, replacing missing gene fields with the gene_id, and other common issues in NCBI genome annotations:
+
+```
+debug_gtf file.gtf file.debug.gtf
+```
+
+See example_run.sh for an example script utilizing the full pipeline to download genomes, get statistics, debug gtfs and build cellranger-arc references.
+
+Current pipeline functions include:
 ```
 download_genomes --species_list ./species.txt --genome_dir ./genomes/
 ```
@@ -38,11 +45,5 @@ make_cellranger_arc_sh --sh_scripts_dir ./submission_scripts/ --stats_csv ./geno
 ```
 
 Debugs gtfs (deduplicate transcripts/genes, add missing transcripts for exons and missing genes for transcripts, fills missing values with placeholders, split chromosomes that are too large, fix nesting)
-
-Or to just debug a gtf:
-
-```
-debug_gtf file.gtf file.debug.gtf
-```
 
 
