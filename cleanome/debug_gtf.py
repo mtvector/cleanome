@@ -141,9 +141,27 @@ def deduplicate_gtf(pandas_df,extra_allowed_cols=[]):
     return pandas_df
 
 def fill_missing_names_with_id(pandas_df,name_column='gene',fill_column='gene_id'):
-    missing_names = (pandas_df[name_column] == 'nan') | (pandas_df[name_column].isna())
+    missing_names = (pandas_df[name_column] == 'nan') | (pandas_df[name_column] == '') | (pandas_df[name_column].isna())
     pandas_df.loc[missing_names,name_column] = pandas_df.loc[missing_names,fill_column]
     return pandas_df
+
+def transfer_gtf_header(source_gtf, target_gtf, output_gtf):
+    header_lines = []
+
+    with open(source_gtf, 'r') as src_file:
+        for line in src_file:
+            if line.startswith('#'):
+                header_lines.append(line)
+            else:
+                break
+
+    with open(target_gtf, 'r') as tgt_file:
+        target_content = tgt_file.readlines()
+
+    # Write the header lines and target content to a new output file
+    with open(output_gtf, 'w') as out_file:
+        out_file.writelines(header_lines)
+        out_file.writelines(target_content)
 
 def main():
     file_path=sys.argv[1]
@@ -160,6 +178,7 @@ def main():
     if 'attribute' in df_with_transcripts.columns:
         df_with_transcripts.drop('attribute',axis=1,inplace=True)
     write_gtf_df(df_with_transcripts, sys.argv[2])
-
+    transfer_gtf_header(sys.argv[1], sys.argv[2], sys.argv[2])
+    
 if __name__ == "__main__":
     main()
