@@ -1,31 +1,48 @@
 Aotus nancymaae
 Callithrix jacchus
 Canis lupus
-Canis familiaris
 Canis lupus familiaris
-Canis latrans
 Chlorocebus sabaeus
 Dasypus novemcinctus
+Equus quagga
+Eschrichtius robustus
 Felis catus
+Gallus gallus
 Gorilla gorilla gorilla
+Hippopotamus amphibius kiboko
 Heterocephalus glaber
 Homo sapiens
+Loxodonta africana
 Macaca mulatta
 Macaca nemestrina
+Mesoplodon densirostris
 Microcebus murinus
 Monodelphis domestica
 Mus musculus
 Mustela putorius furo
+Ornithorhynchus anatinus
 Oryctolagus cuniculus
 Otolemur garnettii
+Pan paniscus
 Pan troglodytes
 Papio anubis
 Phocoena phocoena
 Phocoena sinus
+Physeter catodon
+Pogona vitticeps
+Pongo abelii
+Pseudorca crassidens
 Rattus norvegicus
 Rousettus aegyptiacus
+Saccopteryx bilineata
 Saimiri boliviensis boliviensis
 Sapajus apella
+Sarcophilus harrisii
 Sus scrofa
-Tupaia belangeri
+Tachyglossus aculeatus
+Taeniopygia guttata
+Trachemys scripta elegans
+Tupaia chinensis
+Tupaia tana
+Tursiops truncatus
 Urocitellus parryii

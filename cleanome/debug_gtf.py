@@ -17,6 +17,7 @@ import csv
 import re
 import sys
 import tqdm
+import numpy as np
 
 def gtfparse_gtf_file(file_path):
     '''Read the GTF file into a Polars DataFrame'''
@@ -26,27 +27,43 @@ def polars_to_pandas(df_polars):
     '''Convert Polars DataFrame to pandas DataFrame'''
     return df_polars.to_pandas()
 
+def update_gene_coordinates_vectorized(df):
+    # Only update rows with valid gene_id
+    valid = df['gene_id'] != 'nan'
+    # Ensure numeric types for the valid start and end values.
+    df.loc[valid, 'start'] = pd.to_numeric(df.loc[valid, 'start'], errors='coerce')
+    df.loc[valid, 'end'] = pd.to_numeric(df.loc[valid, 'end'], errors='coerce')
+    # Compute min start and max end for each gene_id using a groupby transform.
+    df['gene_min_start'] = df.groupby('gene_id')['start'].transform('min')
+    df['gene_max_end'] = df.groupby('gene_id')['end'].transform('max')
+    # Update gene rows: only modify rows where feature == 'gene' and gene_id is valid.
+    mask = (df['feature'] == 'gene') & valid
+    df.loc[mask, 'start'] = df.loc[mask, 'gene_min_start']
+    df.loc[mask, 'end'] = df.loc[mask, 'gene_max_end']
+    # Clean up helper columns.
+    df.drop(columns=['gene_min_start', 'gene_max_end'], inplace=True)
+    return df
+
+
 def gtf_add_missing_features_optimized(df):
-    # Function to create a new row for missing transcript/gene
     def create_new_row(row, feature_type):
         new_row = row.copy()
         new_row['feature'] = feature_type
         new_row['frame'] = '.'
         new_row['score'] = '.'
         return new_row
-    # Convert to string to ensure consistent ID matching
+
+    # Ensure IDs are strings for matching.
     df['transcript_id'] = df['transcript_id'].astype(str)
     df['gene_id'] = df['gene_id'].astype(str)
 
-    # Create sets for existing transcripts and genes
     existing_transcripts = set(df.loc[df['feature'] == 'transcript', 'transcript_id'])
     existing_genes = set(df.loc[df['feature'] == 'gene', 'gene_id'])
 
-    # Initialize lists for new rows
     new_transcript_rows = []
     new_gene_rows = []
 
-    # Identify missing transcripts and genes
+    # Add missing transcript and gene rows from exon and transcript features.
     for feature in ['exon', 'transcript']:
         for _, row in tqdm.tqdm(df.loc[df['feature'] == feature].iterrows()):
             if feature == 'exon' and row['transcript_id'] not in existing_transcripts:
@@ -56,12 +73,25 @@ def gtf_add_missing_features_optimized(df):
                 new_gene_rows.append(create_new_row(row, 'gene'))
                 existing_genes.add(row['gene_id'])
 
-    # Append new rows to the DataFrame
-    new_df = pd.concat([df] + [pd.DataFrame(new_transcript_rows), pd.DataFrame(new_gene_rows)], ignore_index=True)
+    new_df = pd.concat([df,
+                        pd.DataFrame(new_transcript_rows),
+                        pd.DataFrame(new_gene_rows)], ignore_index=True)
     new_df.loc[new_df['feature'] == 'exon', 'frame'] = '.'
     new_df.sort_values(by=['seqname', 'start'], inplace=True)
+
+    # Use the vectorized update to adjust gene coordinates.
+    new_df = update_gene_coordinates_vectorized(new_df)
+
     new_df = new_df.astype(str)
     new_df.fillna('nan', inplace=True)
+
+    # Propagate gene/gene_name values within each gene_id group.
+    for col in ['gene', 'gene_name']:
+        if col in new_df.columns:
+            new_df[col] = new_df[col].replace('nan', np.nan)
+            new_df[col] = new_df[col].replace('', np.nan)
+            new_df[col] = new_df.groupby('gene_id')[col].transform(lambda x: x.ffill().bfill())
+            new_df[col] = new_df[col].fillna('nan')
     return new_df
 
 def gtf_attribute_string_funfun(columns_to_condense):
@@ -167,8 +197,9 @@ def main():
     file_path=sys.argv[1]
     polars_df = gtfparse_gtf_file(file_path)
     pandas_df = polars_to_pandas(polars_df)
+    pandas_df = gtf_df_sort(pandas_df)
     df_with_transcripts = gtf_add_missing_features_optimized(pandas_df)
-    df_with_transcripts = fill_missing_names_with_id(df_with_transcripts)
+    df_with_transcripts = fill_missing_names_with_id(df_with_transcripts) if len(sys.argv)<4 else fill_missing_names_with_id(df_with_transcripts,sys.argv[3])#,sys.argv[3]
     print('added features')
     df_with_transcripts=df_with_transcripts.loc[~df_with_transcripts['transcript_id'].astype(str).str.contains('unknown'),:]
     df_with_transcripts=deduplicate_gtf(df_with_transcripts)
