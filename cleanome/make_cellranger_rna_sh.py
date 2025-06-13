@@ -15,22 +15,21 @@ import argparse
 
 def main():
 
-    parser = argparse.ArgumentParser(description="Make cellranger-arc reference generation bash scripts.")
+    parser = argparse.ArgumentParser(description="Make cellranger reference generation bash scripts.")
     
     parser.add_argument('-s', '--sh_scripts_dir', type=os.path.abspath, required=True, help='Directory where the [Slurm] scripts will be saved (can just run them as normal bash)')
-    parser.add_argument('-o', '--output_dir', type=os.path.abspath, required=True, help='Directory where cellranger-arc references will be output')
+    parser.add_argument('-o', '--output_dir', type=os.path.abspath, required=True, help='Directory where cellranger references will be output')
     parser.add_argument('-p', '--partition', type=str, default='celltypes',required=False, help='slurm partition')
-    parser.add_argument('-c', '--cellranger_bin', type=os.path.abspath,default='', required=False, help='Path to cellranger-arc/bin ($PATH finding is unreliable, but you can rely on it if you want)')
-    parser.add_argument('-l', '--log_dir', type=os.path.abspath ,default='./', required=False, help='Path to cellranger-arc/bin ($PATH finding is unreliable, but you can rely on it if you want)')
+    parser.add_argument('-c', '--cellranger_bin', type=os.path.abspath,default='', required=False, help='Path to cellranger/bin ($PATH finding is unreliable, but you can rely on it if you want)')
+    parser.add_argument('-l', '--log_dir', type=os.path.abspath ,default='./', required=False, help='Path to cellranger/bin ($PATH finding is unreliable, but you can rely on it if you want)')
     parser.add_argument('-i', '--stats_csv', type=os.path.abspath, required=True, help='output csv file of genome metadata')
     args=parser.parse_args()
     
     
     # Directory where the Slurm scripts will be saved
     sh_scripts_dir = args.sh_scripts_dir
-    #arc output
     out_dir = args.output_dir
-    #cellranger-arc/bin location
+    #cellranger/bin location
     cellranger_bin = args.cellranger_bin
     # Ensure the scripts directory exists
     os.makedirs(sh_scripts_dir, exist_ok=True)
@@ -50,7 +49,8 @@ def main():
             gtf_path = row['GTF Path']
             split_fasta_path=re.sub('\.fasta|\.fna|\.fa|\.gz','',fasta_path)+'_splitchr.fa'
             split_gtf_path=re.sub('\.gtf|\.gff|\.gz','',gtf_path)+'_splitchr.gtf'
-            ChromosomeSplitter(fasta_path,gtf_path,split_fasta_path,split_gtf_path,length_threshold=5e8)
+            print('skip split',flush=True)
+            # ChromosomeSplitter(fasta_path,gtf_path,split_fasta_path,split_gtf_path,length_threshold=5e8)
             gtf_debugged_filename = os.path.basename(split_gtf_path).replace('.gtf', '_debugged.gtf')
             gtf_debugged_path = os.path.join(os.path.dirname(split_gtf_path), gtf_debugged_filename)
             config_file = f"{out_dir}/refseq_{species}.config"
@@ -72,12 +72,23 @@ source ~/.zshrc
 
 conda activate cleanome
 
+python - <<EOF
+from cleanome.chromosome_splitter import ChromosomeSplitter
+ChromosomeSplitter(
+    "{fasta_path}",
+    "{gtf_path}",
+    "{split_fasta_path}",
+    "{split_gtf_path}",
+    length_threshold=5e8
+)
+EOF
+
 # Step 1: Process the GTF file with the Python script
 debug_gtf "{split_gtf_path}" "{gtf_debugged_path}"
 
-# Step 2: Run cellranger-arc mkref
+# Step 2: Run cellranger mkref
 export PATH=$PATH:{cellranger_bin}
-cellranger-arc mkref --genome {common_name}_{genome_assembly} --fasta {split_fasta_path} --genes {gtf_debugged_path}
+cellranger mkref --genome {common_name}_{genome_assembly} --fasta {split_fasta_path} --genes {gtf_debugged_path}
 cp {config_file} {genome_assembly}
 
 {cellranger_bin}/gtf_to_gene_index {out_dir}/{genome_assembly} test.json 

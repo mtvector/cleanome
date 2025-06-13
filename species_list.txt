@@ -1,3 +1,13 @@
+Ambystoma mexicanum
+Xenopus laevis
+Pleurodeles waltl
+Candoia aspera
+Latimeria chalumnae
+Danio rerio
+Narcine bancroftii
+Petromyzon marinus
+Pagrus major
+Myxine glutinosa
 Aotus nancymaae
 Callithrix jacchus
 Canis lupus

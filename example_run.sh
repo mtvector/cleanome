@@ -17,11 +17,13 @@ mkdir -p $JOB_DIR
 cd $JOB_DIR
 mkdir -p ncbi_genomes
 mkdir -p cellranger_arc
+mkdir -p cellranger_rna
 mkdir -p submission_scripts
+mkdir -p rna_submission_scripts
 mkdir -p logs
 
 download_genomes --species_list ~/utils/cleanome/species_list.txt \
---genome_dir $JOB_DIR/ncbi_genomes/ 
+# --genome_dir $JOB_DIR/ncbi_genomes/ 
 
 get_genomes_and_stats --genome_dir $JOB_DIR/ncbi_genomes/ \
 --stats_csv $JOB_DIR/genome_info.csv -c
@@ -30,4 +32,10 @@ make_cellranger_arc_sh --sh_scripts_dir $JOB_DIR/submission_scripts/ \
 --output_dir $JOB_DIR/cellranger_arc \
 --log_dir $JOB_DIR/logs \
 --stats_csv $JOB_DIR/genome_info.csv \
---cellranger_bin /allen/programs/celltypes/workgroups/rnaseqanalysis/EvoGen/Team/Matthew/utils/cellranger-arc-2.0.2/bin
+--cellranger_bin /allen/programs/celltypes/workgroups/rnaseqanalysis/EvoGen/Team/Matthew/utils/cellranger-arc-2.1.0/bin
+
+make_cellranger_rna_sh --sh_scripts_dir $JOB_DIR/rna_submission_scripts/ \
+--output_dir $JOB_DIR/cellranger_rna \
+--log_dir $JOB_DIR/logs \
+--stats_csv $JOB_DIR/genome_info.csv \
+--cellranger_bin /allen/programs/celltypes/workgroups/rnaseqanalysis/bicore/tools/cellranger-8.0.0/bin

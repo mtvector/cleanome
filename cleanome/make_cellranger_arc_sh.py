@@ -50,7 +50,8 @@ def main():
             gtf_path = row['GTF Path']
             split_fasta_path=re.sub('\.fasta|\.fna|\.fa|\.gz','',fasta_path)+'_splitchr.fa'
             split_gtf_path=re.sub('\.gtf|\.gff|\.gz','',gtf_path)+'_splitchr.gtf'
-            ChromosomeSplitter(fasta_path,gtf_path,split_fasta_path,split_gtf_path,length_threshold=5e8)
+            print('skip split',flush=True)
+            # ChromosomeSplitter(fasta_path,gtf_path,split_fasta_path,split_gtf_path,length_threshold=5e8)
             gtf_debugged_filename = os.path.basename(split_gtf_path).replace('.gtf', '_debugged.gtf')
             gtf_debugged_path = os.path.join(os.path.dirname(split_gtf_path), gtf_debugged_filename)
             config_file = f"{out_dir}/refseq_{species}.config"
@@ -71,6 +72,17 @@ source ~/.bashrc
 source ~/.zshrc
 
 conda activate cleanome
+
+python - <<EOF
+from cleanome.chromosome_splitter import ChromosomeSplitter
+ChromosomeSplitter(
+    "{fasta_path}",
+    "{gtf_path}",
+    "{split_fasta_path}",
+    "{split_gtf_path}",
+    length_threshold=5e8
+)
+EOF
 
 # Step 1: Process the GTF file with the Python script
 debug_gtf "{split_gtf_path}" "{gtf_debugged_path}"
