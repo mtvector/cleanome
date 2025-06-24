@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=mkrefs
 #SBATCH --output=/home/matthew.schmitz/log/testrefs.out
-#SBATCH --error=/home/matthew.schmitz/log/testrefs.err
+#SBATCH --error=/home/matthew.schmitz/log/testrefs.out
 #SBATCH --time=48:00:00
 #SBATCH --partition=celltypes
 #SBATCH --nodes=1
@@ -22,11 +22,14 @@ mkdir -p submission_scripts
 mkdir -p rna_submission_scripts
 mkdir -p logs
 
-download_genomes --species_list ~/utils/cleanome/species_list.txt \
+# download_genomes --species_list ~/utils/cleanome/species_list.txt \
 # --genome_dir $JOB_DIR/ncbi_genomes/ 
 
 get_genomes_and_stats --genome_dir $JOB_DIR/ncbi_genomes/ \
---stats_csv $JOB_DIR/genome_info.csv -c
+--stats_csv $JOB_DIR/genome_info.csv # -c
+
+# Here you would locate mitochondria genomes and add the to genome_info.csv if you wish
+# Or add them independently with add_mito
 
 make_cellranger_arc_sh --sh_scripts_dir $JOB_DIR/submission_scripts/ \
 --output_dir $JOB_DIR/cellranger_arc \

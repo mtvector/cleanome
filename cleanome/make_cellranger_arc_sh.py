@@ -23,6 +23,7 @@ def main():
     parser.add_argument('-c', '--cellranger_bin', type=os.path.abspath,default='', required=False, help='Path to cellranger-arc/bin ($PATH finding is unreliable, but you can rely on it if you want)')
     parser.add_argument('-l', '--log_dir', type=os.path.abspath ,default='./', required=False, help='Path to cellranger-arc/bin ($PATH finding is unreliable, but you can rely on it if you want)')
     parser.add_argument('-i', '--stats_csv', type=os.path.abspath, required=True, help='output csv file of genome metadata')
+    parser.add_argument('-f', '--sif_dir', type=os.path.abspath, required=False, help='location of the singularity file to run mitofinder')
     args=parser.parse_args()
     
     
@@ -50,8 +51,6 @@ def main():
             gtf_path = row['GTF Path']
             split_fasta_path=re.sub('\.fasta|\.fna|\.fa|\.gz','',fasta_path)+'_splitchr.fa'
             split_gtf_path=re.sub('\.gtf|\.gff|\.gz','',gtf_path)+'_splitchr.gtf'
-            print('skip split',flush=True)
-            # ChromosomeSplitter(fasta_path,gtf_path,split_fasta_path,split_gtf_path,length_threshold=5e8)
             gtf_debugged_filename = os.path.basename(split_gtf_path).replace('.gtf', '_debugged.gtf')
             gtf_debugged_path = os.path.join(os.path.dirname(split_gtf_path), gtf_debugged_filename)
             config_file = f"{out_dir}/refseq_{species}.config"
@@ -84,8 +83,37 @@ ChromosomeSplitter(
 )
 EOF
 
-# Step 1: Process the GTF file with the Python script
-debug_gtf "{split_gtf_path}" "{gtf_debugged_path}"
+# — prepare split files —
+TARGET_FASTA="{split_fasta_path}"
+TARGET_GTF="{split_gtf_path}"
+SIF_DIR="{args.sif_dir}"
+
+# — if the user provided a mito accession, run add_mito now! —
+mito_id="{row.get('Mitochondrial GenBank ID','')}"
+if [[ -n "$mito_id" && "$mito_id" != "nan" ]]; then
+    ref_gbk="$(dirname "{fasta_path}")/$mito_id.fa"
+    if [[ -f "$ref_gbk" ]]; then
+        python -m cleanome.add_mito \\
+            -a "$mito_id" \\
+            -r "$ref_gbk" \\
+            -g "$TARGET_FASTA" \\
+            -t "$TARGET_GTF" \\
+            -s "$SIF_DIR" \\
+            -n "{species}"
+
+        # now point at the mito-augmented files
+        TARGET_FASTA="${{TARGET_FASTA%.*}}_mito.fasta"
+        TARGET_GTF="${{TARGET_GTF%.gtf}}_mito.gtf"
+    else
+        echo "Warning: missing GBK $ref_gbk; skipping add_mito"
+    fi
+fi
+
+# — Step 1 (new): Debug _that_ GTF so the mito lines are clean too —
+DEBUGGED_GTF="${{TARGET_GTF%.gtf}}_debugged.gtf"
+debug_gtf "$TARGET_GTF" "$DEBUGGED_GTF"
+FINAL_FASTA="$TARGET_FASTA"
+FINAL_GTF="$DEBUGGED_GTF"
 
 cd {out_dir}
 
@@ -93,8 +121,8 @@ cd {out_dir}
 echo "{{
     organism: \\"{common_name}\\"
     genome: [\\"{genome_assembly}\\"]
-    input_fasta: [\\"{split_fasta_path}\\"]
-    input_gtf: [\\"{gtf_debugged_path}\\"]
+    input_fasta: [\\"$FINAL_FASTA\\"]
+    input_gtf: [\\"$FINAL_GTF\\"]
 }}" > {config_file}
 
 

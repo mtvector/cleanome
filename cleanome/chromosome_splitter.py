@@ -1,31 +1,26 @@
-"""
-Author: Matthew Schmitz, Allen Institute, 2024
-"""
+import os
+import csv
 import pandas as pd
 import numpy as np
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
-import csv
 import pyBigWig
 
 def zcumsum(iterable):
-    cumulative_sum = [0]
+    cumulative = [0]
     total = 0
-    for item in iterable:
-        total += item
-        cumulative_sum.append(total)
-    cumulative_sum.append(float("inf"))
-    return cumulative_sum
+    for x in iterable:
+        total += x
+        cumulative.append(total)
+    cumulative.append(float("inf"))
+    return cumulative
 
 
 class ChromosomeSplitter:
     """
-    Splits contigs greater than a threshold into multiple contigs, and corrects associated GTF file.
-
-    Breakpoints are either provided or detected by splitting evenly and
-    choosing intergenic midpoints.  All metadata about splits is stored
-    in each SeqRecord.description field, so no special FASTA header block
-    is required.
+    Splits contigs larger than length_threshold into parts,
+    writes a sidecar “.splitchr” file recording each contig’s breakpoints,
+    and corrects GTF / BED / BigWig downstream using that sidecar.
     """
 
     def __init__(
@@ -37,34 +32,34 @@ class ChromosomeSplitter:
         length_threshold: int = int(5e8),
         split_locations: dict[str, list[int]] = None,
     ):
-        # 1) determine split locations if needed
+        # 1) detect or accept split locations
         if split_locations is None:
             split_locations = self.find_split_points(fasta_file, gtf_file, length_threshold)
         self.split_locations = split_locations
 
-        # 2) save original lengths
-        self.orig_lengths = self.read_fasta(fasta_file)
+        # 2) read original lengths
+        self.orig_lengths = self._read_lengths(fasta_file)
 
-        # 3) build new SeqRecord list with descriptions
-        records = self.read_fasta_and_split(fasta_file)
+        # 3) build split SeqRecords
+        records = self._make_split_records(fasta_file)
 
-        # 4) write the new FASTA
-        self.write_new_fasta(records, new_fasta_file)
+        # 4) write new FASTA and sidecar
+        self._write_fasta_and_sidecar(records, new_fasta_file)
 
-        # 5) rewrite the GTF
-        self.gtf_chrom_name_change(gtf_file, split_locations, new_gtf_file)
+        # 5) correct GTF
+        self._gtf_chrom_name_change(gtf_file, split_locations, new_gtf_file)
 
     @staticmethod
-    def read_fasta(fasta_file: str) -> dict[str, int]:
-        """Return dict of {chrom: length} for each record in FASTA."""
-        seqs = {}
+    def _read_lengths(fasta_file: str) -> dict[str, int]:
+        """Return {chrom: length} for each record in FASTA."""
+        lengths = {}
         for rec in SeqIO.parse(fasta_file, "fasta"):
-            seqs[rec.id] = len(rec.seq)
-        return seqs
+            lengths[rec.id] = len(rec.seq)
+        return lengths
 
     @staticmethod
-    def read_gtf_as_bed(gtf_file: str, gene_only: bool = True) -> pd.DataFrame:
-        """Load a GTF, extract genes as BED-style dataframe for intergenic detection."""
+    def _read_gtf_as_bed(gtf_file: str) -> pd.DataFrame:
+        """Load GTF and return gene BED for intergenic calculations."""
         df = pd.read_csv(
             gtf_file,
             sep="\t",
@@ -82,92 +77,92 @@ class ChromosomeSplitter:
                 "attribute",
             ],
         )
-        df["start"] = df["start"] - 1  # 0-based for BED
+        df["start"] -= 1
         df["name"] = df["attribute"].str.extract(r'gene_id "([^"]+)"')
         missing = df["name"].isna()
         df.loc[missing, "name"] = df.loc[missing, "attribute"].str.extract(r'gene_name "([^"]+)"')
-        df["extra"] = df["attribute"]
-        if gene_only:
-            df = df[df["feature"] == "gene"]
-        return df[["seqname", "start", "end", "name", "score", "strand", "extra"]]
+        return df[df["feature"] == "gene"][["seqname", "start", "end", "name", "score", "strand", "attribute"]]
 
     @staticmethod
-    def find_nearest_intergenic_regions(
-        genes: pd.DataFrame, split_point: int, num_regions: int = 50
-    ) -> list[tuple[int, int]]:
-        """Among the nearest `num_regions` genes, find all intergenic windows."""
-        genes = genes.copy()
-        genes["distance"] = (genes["start"] - split_point).abs()
-        nearest = genes.nsmallest(num_regions, "distance").sort_values("start")
-        sites = np.concatenate([nearest["start"].values, nearest["end"].values])
-        intergenic = []
-        prev_end = nearest["end"].values[0]
-        for _, row in nearest.iterrows():
-            if row["start"] > prev_end and row["start"] == sites[sites > prev_end].min():
-                intergenic.append((prev_end, row["start"]))
-            prev_end = row["end"]
-        return intergenic
+    def _find_intergenic(genes: pd.DataFrame, point: int, n: int = 50) -> list[tuple[int,int]]:
+        g = genes.copy()
+        g["dist"] = (g["start"] - point).abs()
+        near = g.nsmallest(n, "dist").sort_values("start")
+        sites = np.concatenate([near["start"].values, near["end"].values])
+        inter = []
+        prev = near["end"].values[0]
+        for _, row in near.iterrows():
+            if row["start"] > prev and row["start"] == sites[sites > prev].min():
+                inter.append((prev, row["start"]))
+            prev = row["end"]
+        return inter
 
     @classmethod
     def find_split_points(
         cls, fasta_file: str, gtf_file: str, length_threshold: int
     ) -> dict[str, list[int]]:
-        """Auto-detect breakpoints so that no piece exceeds `length_threshold`."""
-        seq_lens = cls.read_fasta(fasta_file)
-        genes = cls.read_gtf_as_bed(gtf_file)
+        """Auto-detect breakpoints so each piece ≤ length_threshold."""
+        lens = cls._read_lengths(fasta_file)
+        genes = cls._read_gtf_as_bed(gtf_file)
         splits: dict[str, list[int]] = {}
-
-        for chrom, length in seq_lens.items():
-            if length <= length_threshold:
+        for chrom, L in lens.items():
+            if L <= length_threshold:
                 continue
-            n = int(np.ceil(length / length_threshold))
-            theor = [i * length // n for i in range(1, n)]
-            chrom_genes = genes[genes["seqname"] == chrom]
-            opts: list[int] = []
-            for t in theor:
-                ig = cls.find_nearest_intergenic_regions(chrom_genes, t)
+            n = int(np.ceil(L / length_threshold))
+            theory = [i * L // n for i in range(1, n)]
+            cg = genes[genes["seqname"] == chrom]
+            points = []
+            for t in theory:
+                ig = cls._find_intergenic(cg, t)
                 best = max(ig, key=lambda x: x[1] - x[0])
-                opts.append((best[0] + best[1]) // 2)
-            splits[chrom] = opts
+                points.append((best[0] + best[1]) // 2)
+            splits[chrom] = points
         return splits
 
-    def read_fasta_and_split(self, fasta_file: str) -> list[SeqRecord]:
+    def _make_split_records(self, fasta_file: str) -> list[SeqRecord]:
         """
-        Builds SeqRecord objects with .description carrying:
-          - orig=<chrom>:1-<full_length>
-          - chunk=<chrom>__part<i>:<start>-<end> (1-based coords)
+        Return SeqRecord list where each record.description carries no metadata,
+        splitting each chromosome at the breakpoints in self.split_locations.
         """
-        records: list[SeqRecord] = []
+        recs: list[SeqRecord] = []
         for rec in SeqIO.parse(fasta_file, "fasta"):
             chrom = rec.id
             full = self.orig_lengths[chrom]
             if chrom in self.split_locations:
                 edges = [0] + self.split_locations[chrom] + [full]
                 for i in range(len(edges) - 1):
-                    s0, s1 = edges[i], edges[i + 1]
-                    pid = f"{chrom}__part{ i + 1 }"
-                    # convert to 1-based inclusive for human readability
-                    desc = (
-                        f"orig={chrom}:1-{full} "
-                        f"chunk={pid}:{s0+1}-{s1}"
-                    )
-                    records.append(SeqRecord(rec.seq[s0:s1], id=pid, description=desc))
+                    s, e = edges[i], edges[i + 1]
+                    pid = f"{chrom}__part{i+1}"
+                    # no description needed
+                    recs.append(SeqRecord(rec.seq[s:e], id=pid, description=""))
             else:
-                desc = f"orig={chrom}:1-{full}"
-                records.append(SeqRecord(rec.seq, id=chrom, description=desc))
-        return records
+                recs.append(SeqRecord(rec.seq, id=chrom, description=""))
+        return recs
 
-    def write_new_fasta(self, records: list[SeqRecord], out_fa: str):
-        """Dump exactly our SeqRecord list to FASTA (descriptions become > headers)."""
-        with open(out_fa, "w") as h:
+    def _write_fasta_and_sidecar(self, records: list[SeqRecord], out_fasta: str):
+        """
+        Dump FASTA, then write a .splitchr sidecar alongside it
+        recording self.split_locations.
+        """
+        # 1) fasta
+        with open(out_fasta, "w") as h:
             SeqIO.write(records, h, "fasta")
 
-    @staticmethod
-    def gtf_chrom_name_change(
-        gtf_file: str, split_locations: dict[str, list[int]], output_file: str
+        # 2) sidecar
+        base, _ = os.path.splitext(out_fasta)
+        sidecar = base + ".splitchr"
+        with open(sidecar, "w") as h:
+            for chrom, pts in self.split_locations.items():
+                h.write(f"{chrom}\t{','.join(map(str, pts))}\n")
+
+    def _gtf_chrom_name_change(
+        self,
+        gtf_file: str,
+        split_locations: dict[str, list[int]],
+        output_file: str,
     ):
-        """Rewrite GTF rows to new __partN names and adjust coords by chunk offsets."""
-        starts = {c: zcumsum(ls) for c, ls in split_locations.items()}
+        """Rewrite GTF: remap contig names and adjust coords by chunk offsets."""
+        starts = {c: zcumsum(locs) for c, locs in split_locations.items()}
         with open(gtf_file) as gh, open(output_file, "w") as oh:
             rdr = csv.reader(gh, delimiter="\t")
             wtr = csv.writer(oh, delimiter="\t")
@@ -180,7 +175,6 @@ class ChromosomeSplitter:
                 chrom, s, e = row[0], int(row[3]), int(row[4])
                 if chrom in starts:
                     offs = starts[chrom]
-                    # find which chunk contains this start
                     for idx in range(len(offs) - 1):
                         if offs[idx] <= s < offs[idx + 1]:
                             row[0] = f"{chrom}__part{idx+1}"
@@ -189,25 +183,18 @@ class ChromosomeSplitter:
                             break
                 wtr.writerow(row)
 
-    def read_split_locations_from_fasta_header(self, fasta_file: str) -> dict[str, list[int]]:
+    def _read_sidecar(self, fasta_or_splitfile: str) -> dict[str, list[int]]:
         """
-        Scans each SeqRecord.description in FASTA, pulls out all
-        chunk-end coordinates, and reconstructs split_locations.
+        Read .splitchr file next to fasta_or_splitfile.
         """
+        base, _ = os.path.splitext(fasta_or_splitfile)
+        sidecar = base + ".splitchr"
         locs: dict[str, list[int]] = {}
-        for rec in SeqIO.parse(fasta_file, "fasta"):
-            parts = {f.split("=", 1)[0]: f.split("=", 1)[1] for f in rec.description.split()}
-            if "chunk" not in parts:
-                continue
-            orig_chr, _ = parts["orig"].split(":", 1)
-            # chunk looks like "chr__partN:A-B"
-            _, coord = parts["chunk"].split(":", 1)
-            _, end = coord.split("-", 1)
-            locs.setdefault(orig_chr, []).append(int(end))
-        # drop the last end==full-length
-        for c, ends in locs.items():
-            ends.sort()
-            locs[c] = [e for e in ends[:-1]]
+        with open(sidecar) as h:
+            for line in h:
+                chrom, pts = line.strip().split("\t")
+                if pts:
+                    locs[chrom] = [int(x) for x in pts.split(",")]
         return locs
 
     def uncorrect_bed_positions(
@@ -217,14 +204,13 @@ class ChromosomeSplitter:
         split_locations: dict[str, list[int]] = None,
         split_fasta_file: str = None,
     ):
-        """Map BED from split contigs back to original coords."""
+        """Map BED from split contigs back to original coords using sidecar."""
         if split_locations is None:
             if split_fasta_file is None:
-                raise ValueError("Must provide split_fasta_file if split_locations is None")
-            split_locations = self.read_split_locations_from_fasta_header(split_fasta_file)
+                raise ValueError("Must provide split_fasta_file or split_locations")
+            split_locations = self._read_sidecar(split_fasta_file)
 
-        # build chunk-starts for each chrom
-        starts = {c: [0] + sorted(ls) for c, ls in split_locations.items()}
+        starts = {c: [0] + sorted(locs) for c, locs in split_locations.items()}
 
         with open(bed_file) as bh, open(output_file, "w") as oh:
             rdr = csv.reader(bh, delimiter="\t")
@@ -250,16 +236,16 @@ class ChromosomeSplitter:
         split_locations: dict[str, list[int]] = None,
         split_fasta_file: str = None,
     ):
-        """Map BigWig from split contigs back to original coordinates."""
+        """Map BigWig from split contigs back to original coordinates using sidecar."""
         if split_locations is None:
             if split_fasta_file is None:
-                raise ValueError("Must provide split_fasta_file if split_locations is None")
-            split_locations = self.read_split_locations_from_fasta_header(split_fasta_file)
+                raise ValueError("Must provide split_fasta_file or split_locations")
+            split_locations = self._read_sidecar(split_fasta_file)
 
-        starts = {c: [0] + sorted(ls) for c, ls in split_locations.items()}
+        starts = {c: [0] + sorted(locs) for c, locs in split_locations.items()}
 
         bw_in = pyBigWig.open(bigwig_file)
-        # rebuild per-chrom size map
+        # rebuild chrom sizes
         chrom_sizes: dict[str, int] = {}
         for ch, size in bw_in.chroms().items():
             if "__part" in ch:
@@ -275,14 +261,12 @@ class ChromosomeSplitter:
         bw_out.addHeader(list(chrom_sizes.items()))
 
         for ch in bw_in.chroms():
-            intervals = bw_in.intervals(ch)
-            if not intervals:
-                continue
+            ivals = bw_in.intervals(ch) or []
             if "__part" in ch:
                 orig, part = ch.split("__part")
                 idx = int(part) - 1
                 off = starts[orig][idx]
-                adj = [(s + off, e + off, v) for s, e, v in intervals]
+                adj = [(s + off, e + off, v) for s, e, v in ivals]
                 bw_out.addEntries(
                     [orig] * len(adj),
                     [i[0] for i in adj],
@@ -291,10 +275,10 @@ class ChromosomeSplitter:
                 )
             else:
                 bw_out.addEntries(
-                    [ch] * len(intervals),
-                    [i[0] for i in intervals],
-                    ends=[i[1] for i in intervals],
-                    values=[i[2] for i in intervals],
+                    [ch] * len(ivals),
+                    [i[0] for i in ivals],
+                    ends=[i[1] for i in ivals],
+                    values=[i[2] for i in ivals],
                 )
 
         bw_in.close()

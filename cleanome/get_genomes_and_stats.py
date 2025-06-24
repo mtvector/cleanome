@@ -25,7 +25,7 @@ def main():
     genome_csv=args.stats_csv#'./AllNCBIGenomesData.csv'
     
     print('Collecting Genome Info...')
-    ncbi_data = list(process_directory(genome_directory,gtf=args.calculate_stats))
+    ncbi_data = list(process_directory(genome_directory,gtf_stats=args.calculate_stats))
     
     ncbi_data = [x for x in ncbi_data if x is not None]
     

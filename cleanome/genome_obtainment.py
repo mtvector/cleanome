@@ -13,7 +13,18 @@ import gtfparse
 import gzip
 from ete3 import Tree
 import copy
+import hashlib
 
+
+def compute_md5(path, block_size=65536):
+    """
+    Compute the MD5 checksum of a file on disk.
+    """
+    md5 = hashlib.md5()
+    with open(path, 'rb') as f:
+        for chunk in iter(lambda: f.read(block_size), b''):
+            md5.update(chunk)
+    return md5.hexdigest()
 
 def max_column_match(v,df):
     max_count=0
@@ -122,14 +133,10 @@ def download_genome_data(species_taxid, target_directory):
             if file_path.endswith(('.fna','.fa','.fasta', '.gtf','.json','.gff','.gff3','.jsonl')):
                 shutil.move(file_path, species_dir)
 
-        # Clean up (remove zip file and any empty directories)
-        # os.remove(zip_file)
-        # for name in dirs:
-        #     shutil.rmtree(os.path.join(root, name))
-                
 
 
 ##############################ENSEMBL 2023 Processing################################################
+
 
 
 def sanitize_filename(filename):
@@ -272,52 +279,72 @@ def count_genes_transcripts(gtf_path):
     except:
         return 0,0
 
+
+EXCLUDE_SUFFIXES = ('_debugged', '_splitchr','_mito')
+
+def find_original_file(directory, pattern):
+    """
+    Return the first filename in `directory` matching `pattern` 
+    but not containing any of EXCLUDE_SUFFIXES.
+    """
+    for fn in os.listdir(directory):
+        if re.search(pattern, fn) and not any(s in fn for s in EXCLUDE_SUFFIXES):
+            return fn
+    return None
+
 def find_files_in_directory(directory, file_extension):
     for file in os.listdir(directory):
         if re.search(file_extension, file):
             return file
     return None
 
-def process_directory(dir_path,gtf=False):
+
+def build_ncbi_ftp_link(accession, assembly_name, ext):
+    """
+    accession: e.g. 'GCF_030014405.1'
+    assembly_name: e.g. 'ASM3001440v1'
+    ext: one of 'genomic.fna.gz' or 'genomic.gtf.gz'
+    """
+    acc_no, version = accession.split('.')
+    prefix, num = acc_no.split('_')
+    parts = [num[i:i+3] for i in range(0, len(num), 3)]
+    dir_path = "/".join([prefix] + parts + [f"{acc_no}.{version}_{assembly_name}"])
+    fname = f"{acc_no}.{version}_{assembly_name}_{ext}"
+    return f"https://ftp.ncbi.nlm.nih.gov/genomes/all/{dir_path}/{fname}"
+
+
+def process_directory(dir_path, gtf_stats=False):
     for root, dirs, files in os.walk(dir_path):
-        for dir_name in dirs:
-            #try:
-            dir_full_path = os.path.join(root, dir_name)
-            #taxid, species_taxid = dir_name.split('-', 1)
-            try:
-                taxid, species_taxid =re.search('([0-9]+-[A-Za-z_]+)',dir_full_path).group(0).split('-',1)
-                common_name = species_taxid.replace("_", " ")
-            except:
+        for d in dirs:
+            dir_full = os.path.join(root, d)
+            m = re.search(r'([0-9]+-[A-Za-z_]+)', dir_full)
+            if not m: 
                 continue
-            print(species_taxid)
-            # Find the FASTA and GTF files
-            fasta_file = find_files_in_directory(dir_full_path, r'\.f(n)?a(\.gz)?$')
-            print(fasta_file)
+            taxid, species_tag = m.group(0).split('-',1)
+            # find only original fasta/gtf
+            fasta_file = find_original_file(dir_full, r'\.f(n)?a(\.gz)?$')
             if not fasta_file:
                 continue
-
-            fasta_path = os.path.join(dir_full_path, fasta_file)
-
-            # Read assembly name for NCBI
-            
-            accession,assembly_name,assembly_report_path = find_file_accession_and_assembly_name(dir_full_path)
-            assembly_name = fasta_file if assembly_name is None else assembly_name
-            
+            fasta_path = os.path.join(dir_full, fasta_file)
+            accession, assembly_name, _ = find_file_accession_and_assembly_name(dir_full)
+            assembly_name = assembly_name or fasta_file
             n50 = calculate_N50(fasta_path)
-            gtf_file = find_files_in_directory(dir_full_path, r'\.gtf')
-            if gtf and (gtf_file is not None):
-                gtf_path = os.path.join(dir_full_path, gtf_file)
-                num_genes, num_transcripts = count_genes_transcripts(gtf_path)
+            gtf_file = find_original_file(dir_full, r'\.gtf(\.gz)?$')
+            if gtf_file:
+                gtf_path = os.path.join(dir_full, gtf_file)
             else:
-                gtf_file = gtf_file
-                gtf_path = os.path.join(dir_full_path, gtf_file if gtf_file is not None else '')
-                num_genes = None
-                num_transcripts = None
+                gtf_path = None
+            fasta_md5 = compute_md5(fasta_path) if fasta_file else None
+            gtf_md5   = compute_md5(gtf_path)   if gtf_file   else None
+            if gtf_stats and gtf_file:
+                num_genes, num_transcripts = count_genes_transcripts(gtf_path)            
+            else:
+                num_genes = num_transcripts = None
             
-            stat_dict = {
-                'Species': species_taxid,
+            stat = {
+                'Species': species_tag,
                 'TaxID': taxid,
-                'Common Name': common_name,
+                'Common Name': species_tag.replace('_',' '),
                 'Genome Assembly Name': assembly_name,
                 'Genome Accession': accession,
                 'N50': n50,
@@ -325,13 +352,15 @@ def process_directory(dir_path,gtf=False):
                 'Number of Transcripts': num_transcripts,
                 'FASTA File': fasta_file,
                 'FASTA Path': fasta_path,
+                'FASTA MD5': fasta_md5,
                 'GTF File': gtf_file,
-                'GTF Path': gtf_path
+                'GTF Path': gtf_path,
+                'GTF MD5': gtf_md5,
+                'Mitochondrial GenBank ID': '',
+                'FTP FASTA URL': build_ncbi_ftp_link(accession, assembly_name, 'genomic.fna.gz') if accession else '',
+                'FTP GTF URL':   build_ncbi_ftp_link(accession, assembly_name, 'genomic.gtf.gz')   if accession else '',
             }
-            yield stat_dict
-            #except:
-            #    yield None
-
+            yield stat
 
 def get_genera_from_species_list(species_list):
     """Extract genera from a list of species' scientific names."""
@@ -403,7 +432,6 @@ def write_tree_and_dataframe_to_file(tree, df, filename, col1, col2):
 ###################################Ortho Tables#################
 
 
-
 def download_biomart_table(dataset, filename):
     #all_attributes = [x for x in dataset.attributes.keys() if 'hsapiens' in x]
     all_attributes = [
@@ -459,6 +487,3 @@ def get_human_orthologs(species_name, identifiers, cache_path):
 
     orthologs=find_matching_rows(identifiers, df,df.columns[df.columns.str.contains('gene')])        
     return orthologs
-
-
-
