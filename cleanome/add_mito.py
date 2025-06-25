@@ -16,7 +16,17 @@ usage:
         -s /path/to/mitofinder_sif \
         -n rhemac10 \
         [-e your.email@example.com] \
+        \
         [--api_key YOUR_NCBI_API_KEY]
+
+Or from the command line:
+
+    add_mito -a CM091553.1 \
+        -r ~/utils/cleanome/cleanome/mito/homo_sapiens.gb \
+        -s ~/Matthew/genome/mito/remiallio_default_mitofinder.sif \
+        -g GCF_043159975.1_mMacNem.hap1_genomic.fna \
+        -t genomic.gtf \
+        -n Macaca_nemestrina
 """
 
 import sys
