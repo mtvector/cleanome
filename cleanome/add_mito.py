@@ -1,7 +1,11 @@
 """
 Author: Matthew Schmitz, Allen Institute, 2024
 
-Append mitochondrial annotations (via MitoFinder) to a genome assembly.
+Append mitochondrial annotations (via MitoFinder) to a genome assembly. 
+
+Requires download of mitofinder
+https://cloud.sylabs.io/library/remiallio/default/mitofinder
+singularity pull library://remiallio/default/mitofinder
 
 usage:
     python add_mito.py \
@@ -9,7 +13,7 @@ usage:
         -r /path/to/mito_ref.gbk \
         -g /path/to/genome.fa \
         -t /path/to/annotations.gtf \
-        -s /path/to/sif_directory \
+        -s /path/to/mitofinder_sif \
         -n rhemac10 \
         [-e your.email@example.com] \
         [--api_key YOUR_NCBI_API_KEY]
@@ -18,6 +22,9 @@ usage:
 import sys
 import os
 import argparse
+import requests
+import subprocess
+import re
 
 def download_fasta_http(accession: str,
                         out_path: str = None,
@@ -71,15 +78,70 @@ def gff_to_gtf(gff_path: str, gtf_path: str):
             cols[8] = f'gene_id "{name}"; gene "{name}"; gene_name "{name}";'
             out.write("\t".join(cols) + "\n")
 
+
+def gff_to_gtf_with_transcripts(gff_path: str, gtf_path: str):
+    """
+    Convert a MitoFinder GFF → GTF, adding:
+      • gene features with gene_id/gene/gene_name = Name
+      • transcript features (type 'transcript'), same span as each gene,
+        with transcript_id/gene_id/gene_name/transcript_name = Name(.t1)
+    All other lines are converted 1:1 (just with gene_id/gene/gene_name attrs).
+    """
+    with open(gff_path) as gf, open(gtf_path, "w") as out:
+        for line in gf:
+            if line.startswith("#") or not line.strip():
+                continue
+            cols = line.rstrip("\n").split("\t")
+            if len(cols) < 9:
+                continue
+
+            feature_type = cols[2]
+            raw_attrs    = cols[8]
+
+            # pull out the Name= tag
+            name = None
+            for tok in re.split(r"[;\s]+", raw_attrs):
+                if tok.startswith("Name="):
+                    _, name = tok.split("=", 1)
+                    break
+            if not name:
+                name = "."
+
+            # build the common gene‐level attribute string
+            gene_attrs = f'gene_id "{name}"; gene "{name}"; gene_name "{name}";'
+
+            # write the gene line for any 'gene' feature
+            if feature_type == "gene":
+                # 1) gene
+                cols[8] = gene_attrs
+                out.write("\t".join(cols) + "\n")
+
+                # 2) transcript
+                tx_cols = cols.copy()
+                tx_cols[2] = "transcript"
+                tx_cols[8] = (
+                    f'gene_id "{name}"; '
+                    f'transcript_id "{name}.t1"; '
+                    f'gene_name "{name}"; '
+                    f'transcript_name "{name}.t1";'
+                )
+                out.write("\t".join(tx_cols) + "\n")
+
+            else:
+                # everything else stays a single line, tagged as gene
+                cols[8] = gene_attrs
+                out.write("\t".join(cols) + "\n")
+
 def run_mitofinder_and_append(
     mito_accession: str,
     ref_gbk: str,
     genomic_fasta: str,
     transcript_gtf: str,
-    sif_dir: str,
+    sif_path: str,
     spec_name: str,
+    mf_opts: list,
     email: str = None,
-    api_key: str = None
+    api_key: str = None,
 ) -> (str, str):
     """
     1) Download mitochondrial FASTA by accession.
@@ -97,17 +159,14 @@ def run_mitofinder_and_append(
     )
 
     # --- 2) run MitoFinder
-    sif = os.path.join(sif_dir, "remiallio_default_mitofinder.sif")
+    sif = sif_path
     cmd = [
         "singularity", "run", sif,
         "-j", spec_name,
         "-a", mito_fasta,
-        "-r", ref_gbk,
-        "-o", "2",
-        "--blast-identity-prot", "30",
-        "--blast-size", "20",
-        "--blast-identity-nucl", "30"
-    ]
+        "-r", ref_gbk
+    ] + mf_opts
+    
     subprocess.run(cmd, check=True)
 
     # --- 3) locate and convert its GFF
@@ -119,7 +178,7 @@ def run_mitofinder_and_append(
         raise FileNotFoundError(f"Expected {gff_file}")
 
     mito_gtf = os.path.join(results_dir, f"{spec_name}_mtDNA_contig.gtf")
-    gff_to_gtf(gff_file, mito_gtf)
+    gff_to_gtf_with_transcripts(gff_file, mito_gtf)
 
     # --- 4) write new transcriptome GTF
     base_gtf = os.path.splitext(transcript_gtf)[0]
@@ -174,7 +233,7 @@ def main():
         help="Path to the transcriptome GTF to which the mito GTF will be appended"
     )
     parser.add_argument(
-        '-s', '--sif_dir',
+        '-s', '--sif_path',
         type=os.path.abspath,
         required=True,
         help="Directory containing remiallio_default_mitofinder.sif"
@@ -192,7 +251,21 @@ def main():
         '-k', '--api_key',
         help="NCBI Entrez API key (optional, raises rate limits)"
     )
-
+    parser.add_argument(
+        '-m','--mitofinder_opts',
+        nargs=argparse.REMAINDER,
+        default=[
+            "-o", "2",
+            "--blast-identity-prot", "30",
+            "--blast-size", "20",
+            "--blast-identity-nucl", "30"
+        ],
+        help=(
+            "Extra args passed to MitoFinder (default: "
+            "-o 2 --blast-identity-prot 30 --blast-size 20 --blast-identity-nucl 30). "
+            "Specify your own by appending them after this flag."
+        )
+    )
     args = parser.parse_args()
 
     print("Running MitoFinder and appending mito sequence/annotations…")
@@ -202,10 +275,11 @@ def main():
             ref_gbk=args.ref_gbk,
             genomic_fasta=args.genome_fasta,
             transcript_gtf=args.transcript_gtf,
-            sif_dir=args.sif_dir,
+            sif_path=args.sif_path,
             spec_name=args.spec_name,
             email=args.email,
-            api_key=args.api_key
+            api_key=args.api_key,
+            mf_opts=args.mitofinder_opts
         )
     except Exception as e:
         print(f"✖ Error: {e}", file=sys.stderr)
