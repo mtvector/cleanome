@@ -1,5 +1,14 @@
 # cleanome
-This is a python package that can be used to download genome annotations from multiple species and prepare them to be made into reference annotations (e.g. with cellranger or cellranger-arc). It is meant to standardize the process of debugging gtf files in order to make them compatible as gtfs provided by NCBI and ENSEMBL generally have one of a few problems that make them incompatible with creating genomics reference annotations (missing gene/transcript ids, duplicated genes or transcripts, contigs that are too large etc). The package has three functions: 1. Download fasta, gtf, and assembly metadata files for a list of species (by scientific name or taxid). 2. Generate statistics for the assemblies and debug them. 3. Write shell scripts for making [cellranger-arc] references.
+
+**Cleanome** is a Python-based helper toolkit designed to standardize and clean genome annotation files (especially GTFs) so they can be consumed by genomics reference builders like Cellranger (and Cellranger-ARC). At a high level, running a genome through Cleanome involves the following modifications and preprocessing steps: 
+*	**Downloading core files**: It fetches the FASTA sequence, GTF annotation, and associated assembly metadata for a list of species you provide (by scientific name or taxonomy ID), centralizing them in a working directory. 
+*	**Diagnostic statistics**: It computes basic assembly and annotation statistics across all genomes (e.g., contig sizes, number of genes/transcripts), producing a summary table used later for conditional corrections. 
+* **GTF (debugging)**:
+  * Adds missing gene/transcript IDs
+  * Deduplicates features
+  *	Fixes structural nesting issues in GTF entries (improper exon/transcript hierarchies), ensuring the overall annotation tree is coherent. 
+  *	Splits overly large contigs when necessary (based on the genome statistics), accommodating tools that have contig size limits. The only mammalian species that I’ve seen need this is Monodelphis domestica.
+*	**Shell script generation for references**: After cleaning, Cleanome can also write out shell scripts that will invoke the appropriate reference builder binary (e.g., the cellranger-arc CLI) with the cleaned GTF and accompanying FASTA, ready for indexing and full reference creation. 
 
 
 ### Installation
@@ -10,9 +19,7 @@ Make a anaconda environment with python>=3.6
 conda install -c conda-forge ncbi-datasets-cli
 
 conda install -c conda-forge -c bioconda ete3 gtfparse numpy pandas polars polars-lts-cpu pyarrow requests biopython tqdm 
-```
 
-```
 git clone git@github.com:mtvector/cleanome.git
 cd cleanome
 pip install .
