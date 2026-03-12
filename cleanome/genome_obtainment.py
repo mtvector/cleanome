@@ -6,10 +6,14 @@ import requests
 import os
 import re
 from ftplib import FTP
+
+from cleanome._compat import block_broken_pyarrow
+
+block_broken_pyarrow()
+
 import pandas as pd
 from Bio import SeqIO
 from Bio import Entrez
-import gtfparse
 import gzip
 from ete3 import Tree
 import copy
@@ -269,10 +273,31 @@ def count_genes_transcripts(gtf_path):
 
 def count_genes_transcripts(gtf_path):
     try:
-        gtf_df = gtfparse.read_gtf(gtf_path)
+        gtf_df = pd.read_csv(
+            gtf_path,
+            sep='\t',
+            comment='#',
+            header=None,
+            names=[
+                'seqname',
+                'source',
+                'feature',
+                'start',
+                'end',
+                'score',
+                'strand',
+                'frame',
+                'attribute',
+            ],
+            dtype=str,
+            keep_default_na=False,
+            compression='infer',
+        )
+        gtf_df['gene_id'] = gtf_df['attribute'].str.extract(r'gene_id "([^"]+)"').fillna('nan')
+        gtf_df['transcript_id'] = gtf_df['attribute'].str.extract(r'transcript_id "([^"]+)"').fillna('nan')
         num_genes = len(gtf_df['gene_id'].unique())
         try:
-            num_transcripts = len(gtf_df['transcript_id'].unique())
+            num_transcripts = len(gtf_df.loc[gtf_df['transcript_id'] != 'nan', 'transcript_id'].unique())
         except:
             num_transcripts = num_genes
         return num_genes, num_transcripts

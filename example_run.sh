@@ -8,8 +8,11 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --mem=48gb
 
-source ~/.bashrc
-conda activate cleanome
+PYTHON_BIN="${CLEANOME_PYTHON_BIN:-$(command -v python)}"
+if [[ -z "$PYTHON_BIN" ]]; then
+    echo "Unable to locate python; set CLEANOME_PYTHON_BIN" >&2
+    exit 1
+fi
 
 JOB_DIR=/allen/programs/celltypes/workgroups/rnaseqanalysis/EvoGen/genomes/cleanome_genomes2
 mkdir -p $JOB_DIR
@@ -25,19 +28,19 @@ mkdir -p logs
 # download_genomes --species_list ~/utils/cleanome/species_list.txt \
 # --genome_dir $JOB_DIR/ncbi_genomes/ 
 
-get_genomes_and_stats --genome_dir $JOB_DIR/ncbi_genomes/ \
+"$PYTHON_BIN" -m cleanome.get_genomes_and_stats --genome_dir $JOB_DIR/ncbi_genomes/ \
 --stats_csv $JOB_DIR/genome_info.csv # -c
 
 # Here you would locate mitochondria genomes and add the to genome_info.csv if you wish
 # Or add them independently with add_mito
 
-make_cellranger_arc_sh --sh_scripts_dir $JOB_DIR/submission_scripts/ \
+"$PYTHON_BIN" -m cleanome.make_cellranger_arc_sh --sh_scripts_dir $JOB_DIR/submission_scripts/ \
 --output_dir $JOB_DIR/cellranger_arc \
 --log_dir $JOB_DIR/logs \
 --stats_csv $JOB_DIR/genome_info.csv \
 --cellranger_bin /allen/programs/celltypes/workgroups/rnaseqanalysis/EvoGen/Team/Matthew/utils/cellranger-arc-2.1.0/bin
 
-make_cellranger_rna_sh --sh_scripts_dir $JOB_DIR/rna_submission_scripts/ \
+"$PYTHON_BIN" -m cleanome.make_cellranger_rna_sh --sh_scripts_dir $JOB_DIR/rna_submission_scripts/ \
 --output_dir $JOB_DIR/cellranger_rna \
 --log_dir $JOB_DIR/logs \
 --stats_csv $JOB_DIR/genome_info.csv \

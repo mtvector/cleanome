@@ -8,24 +8,66 @@ usage:
 python debug_gtf "{gtf_path}" "{gtf_output}"
 """
 
+from cleanome._compat import block_broken_pyarrow
+
+block_broken_pyarrow()
 
 import pandas as pd
-import gtfparse
-import polars as pl
-import os
 import csv
 import re
 import sys
-import tqdm
 import numpy as np
 
-def gtfparse_gtf_file(file_path):
-    '''Read the GTF file into a Polars DataFrame'''
-    return gtfparse.read_gtf(file_path)
+ATTRIBUTE_KEYS = [
+    'gene_id',
+    'transcript_id',
+    'exon_id',
+    'biotype',
+    'db_xref',
+    'description',
+    'gbkey',
+    'gene',
+    'gene_symbol',
+    'hgnc_symbol',
+    'gene_name',
+]
 
-def polars_to_pandas(df_polars):
-    '''Convert Polars DataFrame to pandas DataFrame'''
-    return df_polars.to_pandas()
+
+def parse_attributes(attr):
+    return {
+        key: value
+        for key, value in re.findall(r'([^ ;]+) "([^"]*)"', attr or '')
+    }
+
+
+def read_gtf_to_pandas(file_path):
+    columns = [
+        'seqname',
+        'source',
+        'feature',
+        'start',
+        'end',
+        'score',
+        'strand',
+        'frame',
+        'attribute',
+    ]
+    df = pd.read_csv(
+        file_path,
+        sep='\t',
+        comment='#',
+        header=None,
+        names=columns,
+        dtype=str,
+        keep_default_na=False,
+        compression='infer',
+    )
+    attributes = df['attribute'].apply(parse_attributes)
+    for key in ATTRIBUTE_KEYS:
+        df[key] = attributes.apply(lambda attr: attr.get(key, 'nan'))
+    df['start'] = pd.to_numeric(df['start'], errors='coerce')
+    df['end'] = pd.to_numeric(df['end'], errors='coerce')
+    return df
 
 def update_gene_coordinates_vectorized(df):
     # Only update rows with valid gene_id
@@ -65,7 +107,7 @@ def gtf_add_missing_features_optimized(df):
 
     # Add missing transcript and gene rows from exon and transcript features.
     for feature in ['exon', 'transcript']:
-        for _, row in tqdm.tqdm(df.loc[df['feature'] == feature].iterrows()):
+        for _, row in df.loc[df['feature'] == feature].iterrows():
             if feature == 'exon' and row['transcript_id'] not in existing_transcripts:
                 new_transcript_rows.append(create_new_row(row, 'transcript'))
                 existing_transcripts.add(row['transcript_id'])
@@ -195,8 +237,7 @@ def transfer_gtf_header(source_gtf, target_gtf, output_gtf):
 
 def main():
     file_path=sys.argv[1]
-    polars_df = gtfparse_gtf_file(file_path)
-    pandas_df = polars_to_pandas(polars_df)
+    pandas_df = read_gtf_to_pandas(file_path)
     pandas_df = gtf_df_sort(pandas_df)
     df_with_transcripts = gtf_add_missing_features_optimized(pandas_df)
     df_with_transcripts = fill_missing_names_with_id(df_with_transcripts) if len(sys.argv)<4 else fill_missing_names_with_id(df_with_transcripts,sys.argv[3])#,sys.argv[3]

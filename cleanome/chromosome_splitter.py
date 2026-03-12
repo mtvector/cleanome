@@ -1,5 +1,10 @@
 import os
 import csv
+
+from cleanome._compat import block_broken_pyarrow
+
+block_broken_pyarrow()
+
 import pandas as pd
 import numpy as np
 from Bio import SeqIO

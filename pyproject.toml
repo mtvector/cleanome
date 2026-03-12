@@ -14,8 +14,6 @@ requires-python = ">=3.6"
 
 # uncomment or adjust versions as you like:
 dependencies = [
-  "gtfparse",
-  "polars-lts-cpu",
   "biopython",
   "pyBigWig",
   "pandas",

@@ -6,10 +6,14 @@ usage:
 Fill in variables and just run python make_cellranger_arc_sh.py
 """
 
-import pandas as pd
 import os
 import re
 import sys
+from cleanome._compat import block_broken_pyarrow
+
+block_broken_pyarrow()
+
+import pandas as pd
 from cleanome.chromosome_splitter import *
 import argparse
 
@@ -45,12 +49,12 @@ def main():
             species = row['Species'].replace(' ', '_')
             common_name = row['Common Name'].replace(' ', '_')
             tax_spec=str(row['TaxID'])+"-"+row['Species']
-            genome_assembly = tax_spec+"__"+re.sub('\.','-',re.sub('_genomic.+','',row['Genome Assembly Name']))
+            genome_assembly = tax_spec+"__"+re.sub(r'\.','-',re.sub(r'_genomic.+','',row['Genome Assembly Name']))
             print(genome_assembly)
             fasta_path = row['FASTA Path']
             gtf_path = row['GTF Path']
-            split_fasta_path=re.sub('\.fasta|\.fna|\.fa|\.gz','',fasta_path)+'_splitchr.fa'
-            split_gtf_path=re.sub('\.gtf|\.gff|\.gz','',gtf_path)+'_splitchr.gtf'
+            split_fasta_path=re.sub(r'\.fasta|\.fna|\.fa|\.gz','',fasta_path)+'_splitchr.fa'
+            split_gtf_path=re.sub(r'\.gtf|\.gff|\.gz','',gtf_path)+'_splitchr.gtf'
             gtf_debugged_filename = os.path.basename(split_gtf_path).replace('.gtf', '_debugged.gtf')
             gtf_debugged_path = os.path.join(os.path.dirname(split_gtf_path), gtf_debugged_filename)
             config_file = f"{out_dir}/refseq_{species}.config"
@@ -66,13 +70,13 @@ def main():
 #SBATCH --ntasks-per-node=1
 #SBATCH --mem=48gb
 
-# Load Python environment 
-source ~/.bashrc
-source ~/.zshrc
+PYTHON_BIN="${{CLEANOME_PYTHON_BIN:-$(command -v python)}}"
+if [[ -z "$PYTHON_BIN" ]]; then
+    echo "Unable to locate python; set CLEANOME_PYTHON_BIN" >&2
+    exit 1
+fi
 
-conda activate cleanome
-
-python - <<EOF
+"$PYTHON_BIN" - <<EOF
 from cleanome.chromosome_splitter import ChromosomeSplitter
 ChromosomeSplitter(
     "{fasta_path}",
@@ -111,7 +115,7 @@ fi
 
 # — Step 1 (new): Debug _that_ GTF so the mito lines are clean too —
 DEBUGGED_GTF="${{TARGET_GTF%.gtf}}_debugged.gtf"
-debug_gtf "$TARGET_GTF" "$DEBUGGED_GTF"
+"$PYTHON_BIN" -m cleanome.debug_gtf "$TARGET_GTF" "$DEBUGGED_GTF"
 FINAL_FASTA="$TARGET_FASTA"
 FINAL_GTF="$DEBUGGED_GTF"
 

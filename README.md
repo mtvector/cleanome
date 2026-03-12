@@ -18,7 +18,7 @@ Make a anaconda environment with python>=3.6
 ```
 conda install -c conda-forge ncbi-datasets-cli
 
-conda install -c conda-forge -c bioconda ete3 gtfparse numpy pandas polars polars-lts-cpu pyarrow requests biopython tqdm 
+conda install -c conda-forge -c bioconda ete3 numpy pandas requests biopython tqdm
 
 git clone git@github.com:mtvector/cleanome.git
 cd cleanome
@@ -33,6 +33,8 @@ To debug a gtf by adding missing gene and transcript fields, replacing missing g
 ```
 debug_gtf file.gtf file.debug.gtf
 ```
+
+Generated shell scripts use `python` by default. If `cleanome` is installed in a non-default interpreter, set `CLEANOME_PYTHON_BIN=/path/to/python` before running them.
 
 See example_run.sh for an example script utilizing the full pipeline to download genomes, get statistics, debug gtfs and build cellranger-arc references.
 
@@ -52,5 +54,4 @@ make_cellranger_arc_sh --sh_scripts_dir ./submission_scripts/ --stats_csv ./geno
 ```
 
 Debugs gtfs (deduplicate transcripts/genes, add missing transcripts for exons and missing genes for transcripts, fills missing values with placeholders, split chromosomes that are too large, fix nesting)
-
 
