@@ -17,7 +17,7 @@ dependencies = [
   "gtfparse",
   "polars-lts-cpu",
   "biopython",
-  "pyBigWig"
+  "pyBigWig",
   "pandas",
   "numpy",
   "tqdm",
