@@ -40,6 +40,13 @@ def parse_attributes(attr):
     }
 
 
+def sanitize_gtf_source(value):
+    value = '' if value is None else str(value).strip()
+    if not value or value == 'nan':
+        return 'unknown'
+    return re.sub(r'\s+', '_', value)
+
+
 def read_gtf_to_pandas(file_path):
     columns = [
         'seqname',
@@ -62,6 +69,7 @@ def read_gtf_to_pandas(file_path):
         keep_default_na=False,
         compression='infer',
     )
+    df['source'] = df['source'].map(sanitize_gtf_source)
     attributes = df['attribute'].apply(parse_attributes)
     for key in ATTRIBUTE_KEYS:
         df[key] = attributes.apply(lambda attr: attr.get(key, 'nan'))
