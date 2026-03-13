@@ -35,6 +35,7 @@ def main():
     out_dir = args.output_dir
     #cellranger/bin location
     cellranger_bin = args.cellranger_bin
+    cellranger_root = os.path.dirname(cellranger_bin.rstrip(os.sep)) if cellranger_bin else ''
     # Ensure the scripts directory exists
     os.makedirs(sh_scripts_dir, exist_ok=True)
     
@@ -75,6 +76,11 @@ if [[ -z "$PYTHON_BIN" ]]; then
     echo "Unable to locate python; set CLEANOME_PYTHON_BIN" >&2
     exit 1
 fi
+CELLRANGER_GTF_INDEX_BIN="{cellranger_root}/lib/bin/gtf_to_gene_index"
+if [[ ! -x "$CELLRANGER_GTF_INDEX_BIN" ]]; then
+    echo "Unable to locate gtf_to_gene_index at $CELLRANGER_GTF_INDEX_BIN" >&2
+    exit 1
+fi
 
 "$PYTHON_BIN" - <<EOF
 from cleanome.chromosome_splitter import ChromosomeSplitter
@@ -93,9 +99,14 @@ EOF
 # Step 2: Run cellranger mkref
 export PATH=$PATH:{cellranger_bin}
 cellranger mkref --genome {common_name}_{genome_assembly} --fasta {split_fasta_path} --genes {gtf_debugged_path}
-cp {config_file} {genome_assembly}
 
-{cellranger_bin}/gtf_to_gene_index {out_dir}/{genome_assembly} test.json 
+if [[ -f "{config_file}" ]]; then
+    cp {config_file} {genome_assembly}
+else
+    echo "Warning: missing config {config_file}; skipping config copy"
+fi
+
+"$CELLRANGER_GTF_INDEX_BIN" {out_dir}/{genome_assembly} test.json
             """
             
             # Save the script to a file

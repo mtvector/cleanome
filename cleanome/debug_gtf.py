@@ -77,6 +77,13 @@ def read_gtf_to_pandas(file_path):
     df['end'] = pd.to_numeric(df['end'], errors='coerce')
     return df
 
+
+def ensure_text_columns(df, columns):
+    for column in columns:
+        if column in df.columns:
+            df[column] = df[column].astype(object)
+    return df
+
 def update_gene_coordinates_vectorized(df):
     # Only update rows with valid gene_id
     valid = df['gene_id'] != 'nan'
@@ -103,6 +110,8 @@ def gtf_add_missing_features_optimized(df):
         new_row['score'] = '.'
         return new_row
 
+    df = ensure_text_columns(df.copy(), ['score', 'frame'])
+
     # Ensure IDs are strings for matching.
     df['transcript_id'] = df['transcript_id'].astype(str)
     df['gene_id'] = df['gene_id'].astype(str)
@@ -126,6 +135,7 @@ def gtf_add_missing_features_optimized(df):
     new_df = pd.concat([df,
                         pd.DataFrame(new_transcript_rows),
                         pd.DataFrame(new_gene_rows)], ignore_index=True)
+    new_df = ensure_text_columns(new_df, ['score', 'frame'])
     new_df.loc[new_df['feature'] == 'exon', 'frame'] = '.'
     new_df.sort_values(by=['seqname', 'start'], inplace=True)
 
@@ -138,8 +148,9 @@ def gtf_add_missing_features_optimized(df):
     # Propagate gene/gene_name values within each gene_id group.
     for col in ['gene', 'gene_name']:
         if col in new_df.columns:
-            new_df[col] = new_df[col].replace('nan', np.nan)
-            new_df[col] = new_df[col].replace('', np.nan)
+            new_df[col] = new_df[col].astype('string')
+            missing_mask = new_df[col].isin(['nan', ''])
+            new_df.loc[missing_mask, col] = np.nan
             new_df[col] = new_df.groupby('gene_id')[col].transform(lambda x: x.ffill().bfill())
             new_df[col] = new_df[col].fillna('nan')
     return new_df
@@ -254,6 +265,8 @@ def main():
     df_with_transcripts=deduplicate_gtf(df_with_transcripts)
     df_with_transcripts = gtf_df_sort(df_with_transcripts)
     print('sorted')
+    df_with_transcripts = ensure_text_columns(df_with_transcripts, ['score', 'frame', 'source'])
+    df_with_transcripts['source'] = df_with_transcripts['source'].map(sanitize_gtf_source)
     df_with_transcripts['score']='.'#the score column is worthless for cellranger so who cares
     if 'attribute' in df_with_transcripts.columns:
         df_with_transcripts.drop('attribute',axis=1,inplace=True)
